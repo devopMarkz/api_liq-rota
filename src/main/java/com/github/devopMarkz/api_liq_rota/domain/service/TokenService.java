@@ -4,6 +4,7 @@ import com.auth0.jwt.JWT;
 import com.auth0.jwt.JWTVerifier;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.exceptions.JWTCreationException;
+import com.auth0.jwt.exceptions.JWTVerificationException;
 import com.auth0.jwt.exceptions.TokenExpiredException;
 import com.github.devopMarkz.api_liq_rota.api.dto.auth.TokenDTO;
 import com.github.devopMarkz.api_liq_rota.api.exception.TokenInvalidoException;
@@ -21,8 +22,9 @@ public class TokenService {
 
     private final UsuarioRepository usuarioRepository;
 
-    private final String SECRET = "my-secret";
-    private final String ISSUER = "api-liq-rota";
+    private static final String SECRET = "my-secret";
+    private static final String ISSUER = "api-liq-rota";
+    private static final String BEARER_PREFIX = "Bearer ";
 
     public TokenService(UsuarioRepository usuarioRepository) {
         this.usuarioRepository = usuarioRepository;
@@ -39,36 +41,43 @@ public class TokenService {
     }
 
     public String gerarToken(Usuario usuario){
-        Algorithm algorithm = Algorithm.HMAC256(SECRET);
-
         try {
+            Algorithm algorithm = Algorithm.HMAC256(SECRET);
             return JWT.create()
                     .withIssuer(ISSUER)
                     .withSubject(usuario.getUsername())
                     .withClaim("Role", usuario.getPerfil().name())
                     .withIssuedAt(Instant.now())
-                    .withExpiresAt(Instant.now().plus(8L, ChronoUnit.HOURS))
+                    .withExpiresAt(Instant.now().plus(8, ChronoUnit.HOURS))
                     .sign(algorithm);
         } catch (JWTCreationException e){
             throw new TokenInvalidoException("Erro na criação do token");
+        } catch (IllegalArgumentException e) {
+            throw new TokenInvalidoException("Configuração de token inválida");
         }
     }
 
     @Transactional(readOnly = true)
     public Usuario validarToken(String token) {
-        Algorithm algorithm = Algorithm.HMAC256(SECRET);
-
-        JWTVerifier verifier = JWT.require(algorithm)
-                .withIssuer(ISSUER)
-                .build();
+        String sanitized = sanitizeToken(token);
 
         try {
-            String email = verifier.verify(token).getSubject();
+            Algorithm algorithm = Algorithm.HMAC256(SECRET);
+            JWTVerifier verifier = JWT.require(algorithm)
+                    .withIssuer(ISSUER)
+                    .build();
 
-            return usuarioRepository.findUsuarioByUsername(email)
+            String username = verifier.verify(sanitized).getSubject();
+
+            return usuarioRepository.findUsuarioByUsername(username)
                     .orElseThrow(() -> new UsernameNotFoundException("Usuário não encontrado!"));
-        } catch (JWTCreationException | TokenExpiredException exception) {
-            throw new TokenInvalidoException("Token expirado ou inválido");
+
+        } catch (TokenExpiredException e) {
+            throw new TokenInvalidoException("Token expirado");
+        } catch (JWTVerificationException e) {
+            throw new TokenInvalidoException("Token inválido");
+        } catch (IllegalArgumentException e) {
+            throw new TokenInvalidoException("Token ausente ou malformado");
         }
     }
 
@@ -77,13 +86,29 @@ public class TokenService {
     }
 
     private Instant obterDataExpiracao(String token) {
-        Algorithm algorithm = Algorithm.HMAC256(SECRET);
-
-        return JWT.require(algorithm)
-                .withIssuer(ISSUER)
-                .build()
-                .verify(token)
-                .getExpiresAtAsInstant();
+        try {
+            Algorithm algorithm = Algorithm.HMAC256(SECRET);
+            return JWT.require(algorithm)
+                    .withIssuer(ISSUER)
+                    .build()
+                    .verify(sanitizeToken(token))
+                    .getExpiresAtAsInstant();
+        } catch (TokenExpiredException e) {
+            throw new TokenInvalidoException("Token expirado");
+        } catch (JWTVerificationException | IllegalArgumentException e) {
+            throw new TokenInvalidoException("Token inválido");
+        }
     }
 
+    /* ===== helpers ===== */
+
+    private String sanitizeToken(String token) {
+        if (token == null) throw new IllegalArgumentException("token nulo");
+        String t = token.trim();
+        if (t.isEmpty()) throw new IllegalArgumentException("token vazio");
+        if (t.regionMatches(true, 0, BEARER_PREFIX, 0, BEARER_PREFIX.length())) {
+            t = t.substring(BEARER_PREFIX.length()).trim();
+        }
+        return t;
+    }
 }

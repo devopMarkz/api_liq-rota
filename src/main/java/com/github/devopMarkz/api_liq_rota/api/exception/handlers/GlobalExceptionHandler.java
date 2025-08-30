@@ -65,27 +65,21 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(CalculoInvalidoException.class)
-    public ResponseEntity<ErroDTO> handlerCalculoInvalido(
-            com.github.devopMarkz.api_liq_rota.api.exception.CalculoInvalidoException e,
-            HttpServletRequest request) {
+    public ResponseEntity<ErroDTO> handlerCalculoInvalido(CalculoInvalidoException e, HttpServletRequest request) {
         HttpStatus status = HttpStatus.UNPROCESSABLE_ENTITY;
         ErroDTO dto = new ErroDTO(Instant.now().toString(), status.value(), request.getRequestURI(), List.of(e.getMessage()));
         return ResponseEntity.status(status).body(dto);
     }
 
     @ExceptionHandler(LoteVazioException.class)
-    public ResponseEntity<ErroDTO> handlerLoteVazio(
-            com.github.devopMarkz.api_liq_rota.api.exception.LoteVazioException e,
-            HttpServletRequest request) {
+    public ResponseEntity<ErroDTO> handlerLoteVazio(LoteVazioException e, HttpServletRequest request) {
         HttpStatus status = HttpStatus.UNPROCESSABLE_ENTITY;
         ErroDTO dto = new ErroDTO(Instant.now().toString(), status.value(), request.getRequestURI(), List.of(e.getMessage()));
         return ResponseEntity.status(status).body(dto);
     }
 
     @ExceptionHandler(RelatorioParametroInvalidoException.class)
-    public ResponseEntity<ErroDTO> handlerRelatorioParametroInvalido(
-            com.github.devopMarkz.api_liq_rota.api.exception.RelatorioParametroInvalidoException e,
-            HttpServletRequest request) {
+    public ResponseEntity<ErroDTO> handlerRelatorioParametroInvalido(RelatorioParametroInvalidoException e, HttpServletRequest request) {
 
         HttpStatus status = HttpStatus.BAD_REQUEST;
         ErroDTO erroDTO = new ErroDTO(
