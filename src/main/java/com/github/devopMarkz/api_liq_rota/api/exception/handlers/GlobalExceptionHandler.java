@@ -66,4 +66,22 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(erroDTO);
     }
 
+    @ExceptionHandler(com.github.devopMarkz.api_liq_rota.api.exception.CalculoInvalidoException.class)
+    public ResponseEntity<ErroDTO> handlerCalculoInvalido(
+            com.github.devopMarkz.api_liq_rota.api.exception.CalculoInvalidoException e,
+            HttpServletRequest request) {
+        HttpStatus status = HttpStatus.UNPROCESSABLE_ENTITY;
+        ErroDTO dto = new ErroDTO(Instant.now().toString(), status.value(), request.getRequestURI(), List.of(e.getMessage()));
+        return ResponseEntity.status(status).body(dto);
+    }
+
+    @ExceptionHandler(com.github.devopMarkz.api_liq_rota.api.exception.LoteVazioException.class)
+    public ResponseEntity<ErroDTO> handlerLoteVazio(
+            com.github.devopMarkz.api_liq_rota.api.exception.LoteVazioException e,
+            HttpServletRequest request) {
+        HttpStatus status = HttpStatus.UNPROCESSABLE_ENTITY;
+        ErroDTO dto = new ErroDTO(Instant.now().toString(), status.value(), request.getRequestURI(), List.of(e.getMessage()));
+        return ResponseEntity.status(status).body(dto);
+    }
+
 }

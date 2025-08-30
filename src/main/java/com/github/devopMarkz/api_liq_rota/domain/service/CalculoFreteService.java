@@ -6,6 +6,9 @@ import com.github.devopMarkz.api_liq_rota.api.dto.frete.FreteRequest;
 import com.github.devopMarkz.api_liq_rota.api.dto.frete.FreteResponse;
 import com.github.devopMarkz.api_liq_rota.api.dto.relatorio.TotaisResponse;
 import com.github.devopMarkz.api_liq_rota.api.dto.viagem.ViagemResponseDTO;
+import com.github.devopMarkz.api_liq_rota.api.exception.CalculoInvalidoException;
+import com.github.devopMarkz.api_liq_rota.api.exception.EntidadeInexistenteException;
+import com.github.devopMarkz.api_liq_rota.api.exception.LoteVazioException;
 import com.github.devopMarkz.api_liq_rota.domain.model.Usuario;
 import com.github.devopMarkz.api_liq_rota.domain.model.Viagem;
 import com.github.devopMarkz.api_liq_rota.domain.repository.ViagemRepository;
@@ -32,12 +35,18 @@ public class CalculoFreteService {
     /* ===================== CÁLCULO (sem persistir) ===================== */
 
     public FreteResponse calcular(FreteRequest req) {
+        validarRequest(req, "cálculo");
         return calcularInterno(req);
     }
 
     public FreteLoteResponse calcularLote(FreteLoteRequest lote) {
+        if (lote == null || lote.getViagens() == null || lote.getViagens().isEmpty()) {
+            throw new LoteVazioException("A lista de viagens do lote é obrigatória e não pode ser vazia.");
+        }
         List<FreteResponse> itens = new ArrayList<>();
-        for (FreteRequest r : lote.getViagens()) {
+        for (int i = 0; i < lote.getViagens().size(); i++) {
+            FreteRequest r = lote.getViagens().get(i);
+            validarRequest(r, "cálculo do item " + (i + 1));
             itens.add(calcularInterno(r));
         }
         return FreteLoteResponse.builder()
@@ -50,6 +59,7 @@ public class CalculoFreteService {
 
     @Transactional
     public ViagemResponseDTO criarViagem(FreteRequest req) {
+        validarRequest(req, "criação");
         Usuario user = UsuarioAutenticadoService.getUsuarioAutenticado();
         FreteResponse calc = calcularInterno(req);
 
@@ -62,9 +72,14 @@ public class CalculoFreteService {
 
     @Transactional
     public List<ViagemResponseDTO> criarViagensEmLote(FreteLoteRequest lote) {
+        if (lote == null || lote.getViagens() == null || lote.getViagens().isEmpty()) {
+            throw new LoteVazioException("A lista de viagens do lote é obrigatória e não pode ser vazia.");
+        }
         List<ViagemResponseDTO> saida = new ArrayList<>();
-        for (FreteRequest req : lote.getViagens()) {
-            saida.add(criarViagem(req)); // reaproveita cálculo + save + mapping
+        for (int i = 0; i < lote.getViagens().size(); i++) {
+            FreteRequest req = lote.getViagens().get(i);
+            validarRequest(req, "criação do item " + (i + 1));
+            saida.add(criarViagem(req));
         }
         return saida;
     }
@@ -86,6 +101,7 @@ public class CalculoFreteService {
 
     @Transactional
     public ViagemResponseDTO atualizarViagem(Long id, FreteRequest req) {
+        validarRequest(req, "atualização");
         Viagem v = obterViagemEntity(id); // garante propriedade
         FreteResponse calc = calcularInterno(req);
 
@@ -115,7 +131,7 @@ public class CalculoFreteService {
     private Viagem obterViagemEntity(Long id) {
         Usuario user = UsuarioAutenticadoService.getUsuarioAutenticado();
         return viagemRepositorio.findByIdAndUsuarioId(id, user.getId())
-                .orElseThrow(() -> new IllegalArgumentException("Viagem não encontrada"));
+                .orElseThrow(() -> new EntidadeInexistenteException("Viagem não encontrada"));
     }
 
     private FreteResponse calcularInterno(FreteRequest req) {
@@ -193,5 +209,39 @@ public class CalculoFreteService {
                 .custoCombustivel(calc.getCustoCombustivel())
                 .valorLiquido(calc.getValorLiquido())
                 .build();
+    }
+
+    /* ===================== validações ===================== */
+
+    private void validarRequest(FreteRequest req, String contexto) {
+        if (req == null) throw new CalculoInvalidoException("Payload de " + contexto + " é obrigatório.");
+
+        List<String> erros = new ArrayList<>();
+
+        if (isBlank(req.getOrigem()))  erros.add("origem é obrigatória.");
+        if (isBlank(req.getDestino())) erros.add("destino é obrigatório.");
+
+        if (req.getDistanciaKm() == null)            erros.add("distanciaKm é obrigatória.");
+        else if (req.getDistanciaKm().compareTo(BigDecimal.ZERO) < 0) erros.add("distanciaKm deve ser >= 0.");
+
+        if (req.getConsumoKmPorLitro() == null)      erros.add("consumoKmPorLitro é obrigatório.");
+        else if (req.getConsumoKmPorLitro().compareTo(BigDecimal.ZERO) <= 0) erros.add("consumoKmPorLitro deve ser > 0.");
+
+        if (req.getPrecoLitro() == null)             erros.add("precoLitro é obrigatório.");
+        else if (req.getPrecoLitro().compareTo(BigDecimal.ZERO) < 0) erros.add("precoLitro deve ser >= 0.");
+
+        if (req.getGastosAdicionais() == null)       erros.add("gastosAdicionais é obrigatório.");
+        else if (req.getGastosAdicionais().compareTo(BigDecimal.ZERO) < 0) erros.add("gastosAdicionais deve ser >= 0.");
+
+        if (req.getValorFrete() == null)             erros.add("valorFrete é obrigatório.");
+        else if (req.getValorFrete().compareTo(BigDecimal.ZERO) < 0) erros.add("valorFrete deve ser >= 0.");
+
+        if (!erros.isEmpty()) {
+            throw new CalculoInvalidoException("Erros no " + contexto + ": " + String.join(" ", erros));
+        }
+    }
+
+    private boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
     }
 }
