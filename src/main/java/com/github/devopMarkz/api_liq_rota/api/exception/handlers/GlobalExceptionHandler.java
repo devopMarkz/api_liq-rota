@@ -1,9 +1,7 @@
 package com.github.devopMarkz.api_liq_rota.api.exception.handlers;
 
 import com.github.devopMarkz.api_liq_rota.api.dto.erro.ErroDTO;
-import com.github.devopMarkz.api_liq_rota.api.exception.EntidadeInexistenteException;
-import com.github.devopMarkz.api_liq_rota.api.exception.TokenInvalidoException;
-import com.github.devopMarkz.api_liq_rota.api.exception.UsuarioInativoException;
+import com.github.devopMarkz.api_liq_rota.api.exception.*;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -66,7 +64,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(erroDTO);
     }
 
-    @ExceptionHandler(com.github.devopMarkz.api_liq_rota.api.exception.CalculoInvalidoException.class)
+    @ExceptionHandler(CalculoInvalidoException.class)
     public ResponseEntity<ErroDTO> handlerCalculoInvalido(
             com.github.devopMarkz.api_liq_rota.api.exception.CalculoInvalidoException e,
             HttpServletRequest request) {
@@ -75,13 +73,28 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(dto);
     }
 
-    @ExceptionHandler(com.github.devopMarkz.api_liq_rota.api.exception.LoteVazioException.class)
+    @ExceptionHandler(LoteVazioException.class)
     public ResponseEntity<ErroDTO> handlerLoteVazio(
             com.github.devopMarkz.api_liq_rota.api.exception.LoteVazioException e,
             HttpServletRequest request) {
         HttpStatus status = HttpStatus.UNPROCESSABLE_ENTITY;
         ErroDTO dto = new ErroDTO(Instant.now().toString(), status.value(), request.getRequestURI(), List.of(e.getMessage()));
         return ResponseEntity.status(status).body(dto);
+    }
+
+    @ExceptionHandler(RelatorioParametroInvalidoException.class)
+    public ResponseEntity<ErroDTO> handlerRelatorioParametroInvalido(
+            com.github.devopMarkz.api_liq_rota.api.exception.RelatorioParametroInvalidoException e,
+            HttpServletRequest request) {
+
+        HttpStatus status = HttpStatus.BAD_REQUEST;
+        ErroDTO erroDTO = new ErroDTO(
+                java.time.Instant.now().toString(),
+                status.value(),
+                request.getRequestURI(),
+                java.util.List.of(e.getMessage())
+        );
+        return ResponseEntity.status(status).body(erroDTO);
     }
 
 }

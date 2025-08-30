@@ -3,6 +3,7 @@ package com.github.devopMarkz.api_liq_rota.domain.service;
 import com.github.devopMarkz.api_liq_rota.api.dto.relatorio.RelatorioAnualItem;
 import com.github.devopMarkz.api_liq_rota.api.dto.relatorio.RelatorioIntervaloTotais;
 import com.github.devopMarkz.api_liq_rota.api.dto.relatorio.RelatorioMensalItem;
+import com.github.devopMarkz.api_liq_rota.api.exception.RelatorioParametroInvalidoException;
 import com.github.devopMarkz.api_liq_rota.domain.model.Usuario;
 import com.github.devopMarkz.api_liq_rota.domain.projections.RelatorioAnualProjection;
 import com.github.devopMarkz.api_liq_rota.domain.projections.RelatorioMensalProjection;
@@ -27,8 +28,10 @@ public class RelatorioService {
 
     private final ViagemRepository repo;
 
-    @Transactional
+    @Transactional(readOnly = true)
     public List<RelatorioMensalItem> mensal(int ano) {
+        validarAno(ano);
+
         Usuario user = UsuarioAutenticadoService.getUsuarioAutenticado();
 
         List<RelatorioMensalProjection> rows = repo.relatorioMensal(user.getId(), ano);
@@ -60,8 +63,10 @@ public class RelatorioService {
         return out;
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public List<RelatorioAnualItem> anual(int de, int ate) {
+        validarAnoIntervalo(de, ate);
+
         Usuario user = UsuarioAutenticadoService.getUsuarioAutenticado();
 
         List<RelatorioAnualProjection> rows = repo.relatorioAnual(user.getId(), de, ate);
@@ -93,8 +98,15 @@ public class RelatorioService {
         return out;
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public RelatorioIntervaloTotais intervalo(LocalDate inicio, LocalDate fim, ZoneId tz) {
+        if (inicio == null) throw new RelatorioParametroInvalidoException("Data inicial (inicio) é obrigatória.");
+        if (fim == null)    throw new RelatorioParametroInvalidoException("Data final (fim) é obrigatória.");
+        if (inicio.isAfter(fim)) {
+            throw new RelatorioParametroInvalidoException("Data inicial não pode ser maior que a data final.");
+        }
+        if (tz == null) throw new RelatorioParametroInvalidoException("Timezone (tz) é obrigatório.");
+
         Usuario user = UsuarioAutenticadoService.getUsuarioAutenticado();
 
         OffsetDateTime ini = inicio.atStartOfDay(tz).toOffsetDateTime();
@@ -124,12 +136,7 @@ public class RelatorioService {
                 .build();
     }
 
-    private static BigDecimal toBD(Object o) {
-        if (o == null) return BigDecimal.ZERO;
-        if (o instanceof BigDecimal bd) return bd;
-        if (o instanceof Number n) return BigDecimal.valueOf(n.doubleValue());
-        return BigDecimal.ZERO;
-    }
+    /* ===== helpers ===== */
 
     private static BigDecimal scale2(BigDecimal bd) {
         return bd == null ? null : bd.setScale(2, RoundingMode.HALF_UP);
@@ -139,4 +146,21 @@ public class RelatorioService {
         return bd == null ? BigDecimal.ZERO : bd;
     }
 
+    private void validarAno(int ano) {
+        if (ano < 1900 || ano > 9999) {
+            throw new RelatorioParametroInvalidoException("Ano inválido: " + ano + ". Use um ano entre 1900 e 9999.");
+        }
+    }
+
+    private void validarAnoIntervalo(int de, int ate) {
+        if (de < 1900 || de > 9999) {
+            throw new RelatorioParametroInvalidoException("Ano inicial inválido: " + de + ".");
+        }
+        if (ate < 1900 || ate > 9999) {
+            throw new RelatorioParametroInvalidoException("Ano final inválido: " + ate + ".");
+        }
+        if (de > ate) {
+            throw new RelatorioParametroInvalidoException("Ano inicial não pode ser maior que o ano final.");
+        }
+    }
 }
