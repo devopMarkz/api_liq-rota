@@ -29,7 +29,8 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http,
                                            CustomAuthenticationFilter authenticationFilter,
-                                           CustomAuthenticationEntryPoint authenticationEntryPoint) throws Exception {
+                                           CustomAuthenticationEntryPoint authenticationEntryPoint,
+                                           CustomAccessDeniedHandler accessDeniedHandler) throws Exception {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
@@ -53,6 +54,7 @@ public class SecurityConfig {
                 .addFilterBefore(authenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .exceptionHandling(exceptions -> {
                     exceptions.authenticationEntryPoint(authenticationEntryPoint);
+                    exceptions.accessDeniedHandler(accessDeniedHandler);
                 })
                 .build();
     }
