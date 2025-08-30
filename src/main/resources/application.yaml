@@ -1,0 +1,7 @@
+spring:
+  application:
+    name: api-liq-rota
+  profiles:
+    active: hmg
+  jpa:
+    open-in-view: false
