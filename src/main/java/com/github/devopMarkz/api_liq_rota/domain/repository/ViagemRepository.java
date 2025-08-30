@@ -26,13 +26,13 @@ public interface ViagemRepository extends JpaRepository<Viagem, Long> {
     // MENSAL
     @Query(value = """
       select
-        to_char(date_trunc('month', v.created_at), 'YYYY-MM')                                     as mes,
-        coalesce(sum(v.distancia_km * (case when v.ida_e_volta then 2 else 1 end)), 0)            as totalDistanciaKm,
-        coalesce(sum(v.custo_combustivel), 0)                                                      as totalCombustivel,
-        coalesce(sum(v.gastos_adicionais), 0)                                                      as totalGastosAdicionais,
-        coalesce(sum(v.custo_combustivel + v.gastos_adicionais), 0)                                as totalGastoTotal,
-        coalesce(sum(v.valor_frete), 0)                                                            as totalValorFrete,
-        coalesce(sum(v.valor_liquido), 0)                                                          as totalValorLiquido
+        to_char(date_trunc('month', v.created_at), 'YYYY-MM') as mes,
+        coalesce(sum(v.distancia_km * (case when v.ida_e_volta then 2 else 1 end)), 0) as totalDistanciaKm,
+        coalesce(sum(v.custo_combustivel), 0) as totalCombustivel,
+        coalesce(sum(v.gastos_adicionais), 0) as totalGastosAdicionais,
+        coalesce(sum(v.custo_combustivel + v.gastos_adicionais), 0) as totalGastoTotal,
+        coalesce(sum(v.valor_frete), 0) as totalValorFrete,
+        coalesce(sum(v.valor_liquido), 0) as totalValorLiquido
       from viagens v
       where v.usuario_id = :usuarioId
         and extract(year from v.created_at) = :ano
@@ -44,13 +44,13 @@ public interface ViagemRepository extends JpaRepository<Viagem, Long> {
     // ANUAL
     @Query(value = """
       select
-        cast(extract(year from v.created_at) as int)                                               as ano,
-        coalesce(sum(v.distancia_km * (case when v.ida_e_volta then 2 else 1 end)), 0)            as totalDistanciaKm,
-        coalesce(sum(v.custo_combustivel), 0)                                                      as totalCombustivel,
-        coalesce(sum(v.gastos_adicionais), 0)                                                      as totalGastosAdicionais,
-        coalesce(sum(v.custo_combustivel + v.gastos_adicionais), 0)                                as totalGastoTotal,
-        coalesce(sum(v.valor_frete), 0)                                                            as totalValorFrete,
-        coalesce(sum(v.valor_liquido), 0)                                                          as totalValorLiquido
+        cast(extract(year from v.created_at) as int) as ano,
+        coalesce(sum(v.distancia_km * (case when v.ida_e_volta then 2 else 1 end)), 0) as totalDistanciaKm,
+        coalesce(sum(v.custo_combustivel), 0) as totalCombustivel,
+        coalesce(sum(v.gastos_adicionais), 0) as totalGastosAdicionais,
+        coalesce(sum(v.custo_combustivel + v.gastos_adicionais), 0) as totalGastoTotal,
+        coalesce(sum(v.valor_frete), 0) as totalValorFrete,
+        coalesce(sum(v.valor_liquido), 0) as totalValorLiquido
       from viagens v
       where v.usuario_id = :usuarioId
         and extract(year from v.created_at) between :de and :ate

@@ -5,9 +5,11 @@ import com.github.devopMarkz.api_liq_rota.api.dto.frete.FreteLoteResponse;
 import com.github.devopMarkz.api_liq_rota.api.dto.frete.FreteRequest;
 import com.github.devopMarkz.api_liq_rota.api.dto.frete.FreteResponse;
 import com.github.devopMarkz.api_liq_rota.api.dto.relatorio.TotaisResponse;
+import com.github.devopMarkz.api_liq_rota.api.dto.viagem.ViagemResponseDTO;
 import com.github.devopMarkz.api_liq_rota.domain.model.Usuario;
 import com.github.devopMarkz.api_liq_rota.domain.model.Viagem;
 import com.github.devopMarkz.api_liq_rota.domain.repository.ViagemRepository;
+import com.github.devopMarkz.api_liq_rota.infraestructure.mapper.ViagemMapper;
 import com.github.devopMarkz.api_liq_rota.infraestructure.security.UsuarioAutenticadoService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -25,6 +27,9 @@ import java.util.List;
 public class CalculoFreteService {
 
     private final ViagemRepository viagemRepositorio;
+    private final ViagemMapper viagemMapper;
+
+    /* ===================== CÁLCULO (sem persistir) ===================== */
 
     public FreteResponse calcular(FreteRequest req) {
         return calcularInterno(req);
@@ -41,43 +46,47 @@ public class CalculoFreteService {
                 .build();
     }
 
+    /* ===================== PERSISTÊNCIA (retornando DTO) ===================== */
+
     @Transactional
-    public Viagem criarViagem(FreteRequest req) {
+    public ViagemResponseDTO criarViagem(FreteRequest req) {
         Usuario user = UsuarioAutenticadoService.getUsuarioAutenticado();
         FreteResponse calc = calcularInterno(req);
 
         Viagem v = mapearParaEntidade(req, calc);
         v.setUsuario(user);
 
-        return viagemRepositorio.save(v);
+        Viagem salvo = viagemRepositorio.save(v);
+        return viagemMapper.toResponse(salvo);
     }
 
     @Transactional
-    public List<Viagem> criarViagensEmLote(FreteLoteRequest lote) {
-        List<Viagem> salvas = new ArrayList<>();
+    public List<ViagemResponseDTO> criarViagensEmLote(FreteLoteRequest lote) {
+        List<ViagemResponseDTO> saida = new ArrayList<>();
         for (FreteRequest req : lote.getViagens()) {
-            salvas.add(criarViagem(req));
+            saida.add(criarViagem(req)); // reaproveita cálculo + save + mapping
         }
-        return salvas;
+        return saida;
     }
 
-    public Viagem obterViagem(Long id) {
-        Usuario user = UsuarioAutenticadoService.getUsuarioAutenticado();
-        return viagemRepositorio.findByIdAndUsuarioId(id, user.getId())
-                .orElseThrow(() -> new IllegalArgumentException("Viagem não encontrada"));
+    public ViagemResponseDTO obterViagem(Long id) {
+        Viagem entity = obterViagemEntity(id);
+        return viagemMapper.toResponse(entity);
     }
 
-    public Page<Viagem> listarViagens(String origem, String destino, Pageable pageable) {
+    public Page<ViagemResponseDTO> listarViagens(String origem, String destino, Pageable pageable) {
         Usuario user = UsuarioAutenticadoService.getUsuarioAutenticado();
         String o = origem == null ? "" : origem;
         String d = destino == null ? "" : destino;
-        return viagemRepositorio.findByUsuarioIdAndOrigemContainingIgnoreCaseAndDestinoContainingIgnoreCase(
-                user.getId(), o, d, pageable);
+        Page<Viagem> page = viagemRepositorio
+                .findByUsuarioIdAndOrigemContainingIgnoreCaseAndDestinoContainingIgnoreCase(
+                        user.getId(), o, d, pageable);
+        return viagemMapper.toResponsePage(page);
     }
 
     @Transactional
-    public Viagem atualizarViagem(Long id, FreteRequest req) {
-        Viagem v = obterViagem(id);
+    public ViagemResponseDTO atualizarViagem(Long id, FreteRequest req) {
+        Viagem v = obterViagemEntity(id); // garante propriedade
         FreteResponse calc = calcularInterno(req);
 
         v.setOrigem(req.getOrigem());
@@ -91,13 +100,22 @@ public class CalculoFreteService {
         v.setCustoCombustivel(calc.getCustoCombustivel());
         v.setValorLiquido(calc.getValorLiquido());
 
-        return viagemRepositorio.save(v);
+        Viagem atualizado = viagemRepositorio.save(v);
+        return viagemMapper.toResponse(atualizado);
     }
 
     @Transactional
     public void removerViagem(Long id) {
-        Viagem v = obterViagem(id);
+        Viagem v = obterViagemEntity(id); // garante propriedade
         viagemRepositorio.delete(v);
+    }
+
+    /* ===================== HELPERS ===================== */
+
+    private Viagem obterViagemEntity(Long id) {
+        Usuario user = UsuarioAutenticadoService.getUsuarioAutenticado();
+        return viagemRepositorio.findByIdAndUsuarioId(id, user.getId())
+                .orElseThrow(() -> new IllegalArgumentException("Viagem não encontrada"));
     }
 
     private FreteResponse calcularInterno(FreteRequest req) {
