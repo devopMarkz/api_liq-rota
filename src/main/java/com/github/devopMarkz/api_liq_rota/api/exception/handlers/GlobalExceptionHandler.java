@@ -1,10 +1,13 @@
 package com.github.devopMarkz.api_liq_rota.api.exception.handlers;
 
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import com.github.devopMarkz.api_liq_rota.api.dto.erro.ErroDTO;
 import com.github.devopMarkz.api_liq_rota.api.exception.*;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -89,6 +92,40 @@ public class GlobalExceptionHandler {
                 java.util.List.of(e.getMessage())
         );
         return ResponseEntity.status(status).body(erroDTO);
+    }
+
+    @ExceptionHandler(ViolacaoUnicidadeChaveException.class)
+    public ResponseEntity<ErroDTO> handlerViolacaoUnicidadeChave(ViolacaoUnicidadeChaveException e, HttpServletRequest request) {
+        HttpStatus status = HttpStatus.CONFLICT;
+        List<String> erros = List.of(e.getMessage());
+        ErroDTO erroDTO = new ErroDTO(Instant.now().toString(), status.value(), request.getRequestURI(), erros);
+        return ResponseEntity.status(status).body(erroDTO);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErroDTO> handlerHttpMessageNotReadable(
+            HttpMessageNotReadableException e,
+            HttpServletRequest request) {
+
+        HttpStatus status = HttpStatus.BAD_REQUEST;
+        String mensagem = "Corpo da requisição é obrigatório.";
+
+        Throwable cause = e.getMostSpecificCause();
+        if (cause instanceof JsonParseException) {
+            mensagem = "JSON malformado: " + cause.getMessage();
+        } else if (cause instanceof MismatchedInputException) {
+            mensagem = "Estrutura JSON inválida ou incompatível com o DTO.";
+        } else if (e.getMessage() != null && e.getMessage().contains("Required request body is missing")) {
+            mensagem = "Corpo da requisição é obrigatório.";
+        }
+
+        ErroDTO body = new ErroDTO(
+                java.time.Instant.now().toString(),
+                status.value(),
+                request.getRequestURI(),
+                java.util.List.of(mensagem)
+        );
+        return ResponseEntity.status(status).body(body);
     }
 
 }
