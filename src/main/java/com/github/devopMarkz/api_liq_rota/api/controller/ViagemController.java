@@ -3,7 +3,7 @@ package com.github.devopMarkz.api_liq_rota.api.controller;
 import com.github.devopMarkz.api_liq_rota.api.dto.frete.FreteLoteRequest;
 import com.github.devopMarkz.api_liq_rota.api.dto.frete.FreteRequest;
 import com.github.devopMarkz.api_liq_rota.api.dto.frete.FreteResponse;
-import com.github.devopMarkz.api_liq_rota.domain.model.Viagem;
+import com.github.devopMarkz.api_liq_rota.api.dto.viagem.ViagemResponseDTO;
 import com.github.devopMarkz.api_liq_rota.domain.service.CalculoFreteService;
 import com.github.devopMarkz.api_liq_rota.utils.GerenciadorDePermissoes;
 import jakarta.validation.Valid;
@@ -25,25 +25,25 @@ public class ViagemController {
 
     @PostMapping
     @PreAuthorize(GerenciadorDePermissoes.ROLE_USUARIO_COMUM)
-    public ResponseEntity<Viagem> criar(@Valid @RequestBody FreteRequest request) {
+    public ResponseEntity<ViagemResponseDTO> criar(@Valid @RequestBody FreteRequest request) {
         return ResponseEntity.status(201).body(service.criarViagem(request));
     }
 
     @PostMapping("/lote")
     @PreAuthorize(GerenciadorDePermissoes.ROLE_USUARIO_COMUM)
-    public ResponseEntity<List<Viagem>> criarLote(@Valid @RequestBody FreteLoteRequest request) {
+    public ResponseEntity<List<ViagemResponseDTO>> criarLote(@Valid @RequestBody FreteLoteRequest request) {
         return ResponseEntity.status(201).body(service.criarViagensEmLote(request));
     }
 
     @GetMapping("/{id}")
     @PreAuthorize(GerenciadorDePermissoes.ROLE_USUARIO_COMUM)
-    public ResponseEntity<Viagem> obter(@PathVariable Long id) {
+    public ResponseEntity<ViagemResponseDTO> obter(@PathVariable Long id) {
         return ResponseEntity.ok(service.obterViagem(id));
     }
 
     @GetMapping
     @PreAuthorize(GerenciadorDePermissoes.ROLE_USUARIO_COMUM)
-    public ResponseEntity<Page<Viagem>> listar(
+    public ResponseEntity<Page<ViagemResponseDTO>> listar(
             @RequestParam(required = false) String origem,
             @RequestParam(required = false) String destino,
             Pageable pageable) {
@@ -52,7 +52,8 @@ public class ViagemController {
 
     @PutMapping("/{id}")
     @PreAuthorize(GerenciadorDePermissoes.ROLE_USUARIO_COMUM)
-    public ResponseEntity<Viagem> atualizar(@PathVariable Long id, @Valid @RequestBody FreteRequest request) {
+    public ResponseEntity<ViagemResponseDTO> atualizar(@PathVariable Long id,
+                                                       @Valid @RequestBody FreteRequest request) {
         return ResponseEntity.ok(service.atualizarViagem(id, request));
     }
 
@@ -67,7 +68,9 @@ public class ViagemController {
     @PostMapping("/{id}/calcular")
     @PreAuthorize(GerenciadorDePermissoes.ROLE_USUARIO_COMUM)
     public ResponseEntity<FreteResponse> recalcular(@PathVariable Long id) {
-        Viagem v = service.obterViagem(id);
+        // usa o DTO retornado pelo service
+        ViagemResponseDTO v = service.obterViagem(id);
+
         FreteRequest req = new FreteRequest();
         req.setOrigem(v.getOrigem());
         req.setDestino(v.getDestino());
@@ -77,6 +80,7 @@ public class ViagemController {
         req.setGastosAdicionais(v.getGastosAdicionais());
         req.setValorFrete(v.getValorFrete());
         req.setIdaEVolta(v.getIdaEVolta());
+
         return ResponseEntity.ok(service.calcular(req));
     }
 }
