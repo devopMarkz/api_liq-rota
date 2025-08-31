@@ -10,6 +10,7 @@ import com.github.devopMarkz.api_liq_rota.api.dto.auth.TokenDTO;
 import com.github.devopMarkz.api_liq_rota.api.exception.TokenInvalidoException;
 import com.github.devopMarkz.api_liq_rota.domain.model.Usuario;
 import com.github.devopMarkz.api_liq_rota.domain.repository.UsuarioRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,7 +23,9 @@ public class TokenService {
 
     private final UsuarioRepository usuarioRepository;
 
-    private static final String SECRET = "my-secret";
+    @Value("${token.secret}")
+    private String secret;
+
     private static final String ISSUER = "api-liq-rota";
     private static final String BEARER_PREFIX = "Bearer ";
 
@@ -42,7 +45,7 @@ public class TokenService {
 
     public String gerarToken(Usuario usuario){
         try {
-            Algorithm algorithm = Algorithm.HMAC256(SECRET);
+            Algorithm algorithm = Algorithm.HMAC256(secret);
             return JWT.create()
                     .withIssuer(ISSUER)
                     .withSubject(usuario.getUsername())
@@ -62,7 +65,7 @@ public class TokenService {
         String sanitized = sanitizeToken(token);
 
         try {
-            Algorithm algorithm = Algorithm.HMAC256(SECRET);
+            Algorithm algorithm = Algorithm.HMAC256(secret);
             JWTVerifier verifier = JWT.require(algorithm)
                     .withIssuer(ISSUER)
                     .build();
@@ -87,7 +90,7 @@ public class TokenService {
 
     private Instant obterDataExpiracao(String token) {
         try {
-            Algorithm algorithm = Algorithm.HMAC256(SECRET);
+            Algorithm algorithm = Algorithm.HMAC256(secret);
             return JWT.require(algorithm)
                     .withIssuer(ISSUER)
                     .build()
