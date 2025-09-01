@@ -79,7 +79,7 @@ public class CalculoFreteService {
         for (int i = 0; i < lote.getViagens().size(); i++) {
             FreteRequest req = lote.getViagens().get(i);
             validarRequest(req, "criação do item " + (i + 1));
-            saida.add(criarViagem(req));
+            saida.add(criarViagem(req)); // reaproveita cálculo + save + mapping
         }
         return saida;
     }
@@ -111,7 +111,7 @@ public class CalculoFreteService {
         v.setConsumoKmPorLitro(req.getConsumoKmPorLitro());
         v.setPrecoLitro(req.getPrecoLitro());
         v.setGastosAdicionais(req.getGastosAdicionais());
-        v.setValorFrete(req.getValorFrete());
+        v.setValorFrete(calc.getValorFrete()); // usa o valor calculado (pode vir do ganhoPorKmDesejado)
         v.setIdaEVolta(Boolean.TRUE.equals(req.getIdaEVolta()));
         v.setCustoCombustivel(calc.getCustoCombustivel());
         v.setValorLiquido(calc.getValorLiquido());
@@ -134,22 +134,53 @@ public class CalculoFreteService {
                 .orElseThrow(() -> new EntidadeInexistenteException("Viagem não encontrada"));
     }
 
+    /**
+     * Regras:
+     *  - Se 'valorFrete' for informado, usa-se diretamente (modo A).
+     *  - Senão, se 'ganhoPorKmDesejado' for informado (modo B),
+     *    calcula-se:
+     *       valorLiquidoDesejado = ganhoPorKmDesejado × distanciaEfetiva
+     *       valorFrete = valorLiquidoDesejado + (custoCombustivel + gastosAdicionais)
+     *  - XOR: exatamente um dos dois deve ser informado.
+     */
     private FreteResponse calcularInterno(FreteRequest req) {
         BigDecimal distanciaEfetiva = Boolean.TRUE.equals(req.getIdaEVolta())
                 ? req.getDistanciaKm().multiply(BigDecimal.valueOf(2))
                 : req.getDistanciaKm();
 
-        BigDecimal litrosEq = distanciaEfetiva
-                .divide(req.getConsumoKmPorLitro(), 6, RoundingMode.HALF_UP);
+        BigDecimal litrosEq = distanciaEfetiva.divide(req.getConsumoKmPorLitro(), 6, RoundingMode.HALF_UP);
         BigDecimal custoComb = litrosEq.multiply(req.getPrecoLitro());
 
         BigDecimal gastoTotal = custoComb.add(req.getGastosAdicionais());
-        BigDecimal liquido = req.getValorFrete().subtract(gastoTotal);
 
-        BigDecimal ganhoPorKm = null;
-        if (distanciaEfetiva.compareTo(BigDecimal.ZERO) > 0) {
-            ganhoPorKm = liquido.divide(distanciaEfetiva, 6, RoundingMode.HALF_UP)
-                    .setScale(2, RoundingMode.HALF_UP);
+        boolean temFrete   = req.getValorFrete() != null;
+        boolean temGanhoKm = req.getGanhoPorKmDesejado() != null;
+
+        BigDecimal valorFrete;
+        BigDecimal liquido;
+        BigDecimal ganhoPorKm;
+
+        if (temFrete) {
+            valorFrete = req.getValorFrete();
+            liquido = valorFrete.subtract(gastoTotal);
+            ganhoPorKm = (distanciaEfetiva.compareTo(BigDecimal.ZERO) > 0)
+                    ? liquido.divide(distanciaEfetiva, 6, RoundingMode.HALF_UP)
+                    : null;
+        } else {
+            // MODO B: "ganhoPorKmDesejado" = PREÇO COBRADO POR KM (BRUTO)
+            BigDecimal precoPorKmBruto = req.getGanhoPorKmDesejado(); // R$/km
+            // Preço do frete é simplesmente preço por km × distância
+            valorFrete = (distanciaEfetiva.compareTo(BigDecimal.ZERO) > 0)
+                    ? precoPorKmBruto.multiply(distanciaEfetiva)
+                    : BigDecimal.ZERO;
+
+            // Líquido considera despesas (combustível + adicionais)
+            liquido = valorFrete.subtract(gastoTotal);
+
+            // Ganho por km REAL (líquido por km)
+            ganhoPorKm = (distanciaEfetiva.compareTo(BigDecimal.ZERO) > 0)
+                    ? liquido.divide(distanciaEfetiva, 6, RoundingMode.HALF_UP)
+                    : null;
         }
 
         return FreteResponse.builder()
@@ -160,9 +191,9 @@ public class CalculoFreteService {
                 .custoCombustivel(custoComb.setScale(2, RoundingMode.HALF_UP))
                 .gastosAdicionais(req.getGastosAdicionais().setScale(2, RoundingMode.HALF_UP))
                 .gastoTotal(gastoTotal.setScale(2, RoundingMode.HALF_UP))
-                .valorFrete(req.getValorFrete().setScale(2, RoundingMode.HALF_UP))
+                .valorFrete(valorFrete.setScale(2, RoundingMode.HALF_UP))
                 .valorLiquido(liquido.setScale(2, RoundingMode.HALF_UP))
-                .ganhoPorKm(ganhoPorKm)
+                .ganhoPorKm(ganhoPorKm == null ? null : ganhoPorKm.setScale(2, RoundingMode.HALF_UP))
                 .build();
     }
 
@@ -204,7 +235,7 @@ public class CalculoFreteService {
                 .consumoKmPorLitro(req.getConsumoKmPorLitro())
                 .precoLitro(req.getPrecoLitro())
                 .gastosAdicionais(req.getGastosAdicionais())
-                .valorFrete(req.getValorFrete())
+                .valorFrete(calc.getValorFrete()) // sempre grava o calculado
                 .idaEVolta(Boolean.TRUE.equals(req.getIdaEVolta()))
                 .custoCombustivel(calc.getCustoCombustivel())
                 .valorLiquido(calc.getValorLiquido())
@@ -233,11 +264,27 @@ public class CalculoFreteService {
         if (req.getGastosAdicionais() == null)       erros.add("gastosAdicionais é obrigatório.");
         else if (req.getGastosAdicionais().compareTo(BigDecimal.ZERO) < 0) erros.add("gastosAdicionais deve ser >= 0.");
 
-        if (req.getValorFrete() == null)             erros.add("valorFrete é obrigatório.");
-        else if (req.getValorFrete().compareTo(BigDecimal.ZERO) < 0) erros.add("valorFrete deve ser >= 0.");
+        // ----- Regra XOR: valorFrete OU ganhoPorKmDesejado -----
+        boolean temFrete   = req.getValorFrete() != null;
+        boolean temGanhoKm = req.getGanhoPorKmDesejado() != null;
+
+        if (!temFrete && !temGanhoKm) {
+            erros.add("Informe 'valorFrete' OU 'ganhoPorKmDesejado'.");
+        }
+        if (temFrete && temGanhoKm) {
+            erros.add("Informe apenas um: 'valorFrete' OU 'ganhoPorKmDesejado'.");
+        }
+
+        if (temFrete && req.getValorFrete().compareTo(BigDecimal.ZERO) < 0) {
+            erros.add("valorFrete deve ser >= 0.");
+        }
+        if (temGanhoKm && req.getGanhoPorKmDesejado().compareTo(BigDecimal.ZERO) < 0) {
+            erros.add("ganhoPorKmDesejado deve ser >= 0.");
+        }
+        // -------------------------------------------------------
 
         if (!erros.isEmpty()) {
-            throw new CalculoInvalidoException("Erros no " + contexto + ": " + String.join(" ", erros));
+            throw new CalculoInvalidoException("Erros na " + contexto + ": " + String.join(" ", erros));
         }
     }
 

@@ -4,13 +4,11 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
 
 @Getter @Setter
-@NoArgsConstructor
 public class FreteRequest {
 
     @NotBlank
@@ -19,21 +17,25 @@ public class FreteRequest {
     @NotBlank
     private String destino;
 
-    @NotNull @DecimalMin(value = "0.0", inclusive = true)
+    @NotNull @DecimalMin(value = "0.0")
     private BigDecimal distanciaKm;
 
-    @NotNull @DecimalMin(value = "0.000001", inclusive = true,
-            message = "consumoKmPorLitro deve ser > 0")
+    @NotNull @DecimalMin(value = "0.000001")
     private BigDecimal consumoKmPorLitro;
 
-    @NotNull @DecimalMin(value = "0.0", inclusive = true)
+    @NotNull @DecimalMin(value = "0.0")
     private BigDecimal precoLitro;
 
-    @NotNull @DecimalMin(value = "0.0", inclusive = true)
+    @NotNull @DecimalMin(value = "0.0")
     private BigDecimal gastosAdicionais;
 
-    @NotNull @DecimalMin(value = "0.0", inclusive = true)
-    private BigDecimal valorFrete;
+    // MODO A: informar diretamente o valor do frete
+    @DecimalMin(value = "0.0")
+    private BigDecimal valorFrete; // opcional agora
+
+    // MODO B: informar quanto QUER ganhar por km (líquido/km)
+    @DecimalMin(value = "0.0")
+    private BigDecimal ganhoPorKmDesejado; // opcional
 
     private Boolean idaEVolta = Boolean.FALSE;
 }
