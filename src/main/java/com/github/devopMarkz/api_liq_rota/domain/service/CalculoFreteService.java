@@ -144,11 +144,16 @@ public class CalculoFreteService {
      *  - XOR: exatamente um dos dois deve ser informado.
      */
     private FreteResponse calcularInterno(FreteRequest req) {
-        BigDecimal distanciaEfetiva = Boolean.TRUE.equals(req.getIdaEVolta())
+        // Distâncias
+        BigDecimal distanciaCobranca = req.getDistanciaKm(); // cliente paga só a ida
+        BigDecimal distanciaCusto = Boolean.TRUE.equals(req.getIdaEVolta())
                 ? req.getDistanciaKm().multiply(BigDecimal.valueOf(2))
-                : req.getDistanciaKm();
+                : req.getDistanciaKm(); // motorista roda ida (+volta se marcado)
 
-        BigDecimal litrosEq = distanciaEfetiva.divide(req.getConsumoKmPorLitro(), 6, RoundingMode.HALF_UP);
+        // Combustível com base na distância de custo
+        BigDecimal litrosEq = (distanciaCusto.compareTo(BigDecimal.ZERO) > 0)
+                ? distanciaCusto.divide(req.getConsumoKmPorLitro(), 6, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
         BigDecimal custoComb = litrosEq.multiply(req.getPrecoLitro());
 
         BigDecimal gastoTotal = custoComb.add(req.getGastosAdicionais());
@@ -161,32 +166,25 @@ public class CalculoFreteService {
         BigDecimal ganhoPorKm;
 
         if (temFrete) {
+            // MODO A: valor do frete informado (bruto)
             valorFrete = req.getValorFrete();
-            liquido = valorFrete.subtract(gastoTotal);
-            ganhoPorKm = (distanciaEfetiva.compareTo(BigDecimal.ZERO) > 0)
-                    ? liquido.divide(distanciaEfetiva, 6, RoundingMode.HALF_UP)
-                    : null;
         } else {
-            // MODO B: "ganhoPorKmDesejado" = PREÇO COBRADO POR KM (BRUTO)
-            BigDecimal precoPorKmBruto = req.getGanhoPorKmDesejado(); // R$/km
-            // Preço do frete é simplesmente preço por km × distância
-            valorFrete = (distanciaEfetiva.compareTo(BigDecimal.ZERO) > 0)
-                    ? precoPorKmBruto.multiply(distanciaEfetiva)
+            // MODO B: ganhoPorKmDesejado = PREÇO POR KM (BRUTO) — cliente paga só a ida
+            BigDecimal precoPorKmBruto = req.getGanhoPorKmDesejado();
+            valorFrete = (distanciaCobranca.compareTo(BigDecimal.ZERO) > 0)
+                    ? precoPorKmBruto.multiply(distanciaCobranca)
                     : BigDecimal.ZERO;
-
-            // Líquido considera despesas (combustível + adicionais)
-            liquido = valorFrete.subtract(gastoTotal);
-
-            // Ganho por km REAL (líquido por km)
-            ganhoPorKm = (distanciaEfetiva.compareTo(BigDecimal.ZERO) > 0)
-                    ? liquido.divide(distanciaEfetiva, 6, RoundingMode.HALF_UP)
-                    : null;
         }
+
+        liquido = valorFrete.subtract(gastoTotal);
+        ganhoPorKm = (distanciaCusto.compareTo(BigDecimal.ZERO) > 0)
+                ? liquido.divide(distanciaCusto, 6, RoundingMode.HALF_UP)
+                : null;
 
         return FreteResponse.builder()
                 .origem(req.getOrigem())
                 .destino(req.getDestino())
-                .distanciaConsideradaKm(distanciaEfetiva.setScale(2, RoundingMode.HALF_UP))
+                .distanciaConsideradaKm(distanciaCusto.setScale(2, RoundingMode.HALF_UP)) // mostra km rodado
                 .idaEVolta(Boolean.TRUE.equals(req.getIdaEVolta()))
                 .custoCombustivel(custoComb.setScale(2, RoundingMode.HALF_UP))
                 .gastosAdicionais(req.getGastosAdicionais().setScale(2, RoundingMode.HALF_UP))
