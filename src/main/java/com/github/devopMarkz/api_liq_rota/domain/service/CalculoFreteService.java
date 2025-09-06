@@ -32,6 +32,8 @@ public class CalculoFreteService {
     private final ViagemRepository viagemRepositorio;
     private final ViagemMapper viagemMapper;
 
+    private static final BigDecimal VEL_PADRAO_KMH = BigDecimal.valueOf(80);
+
     /* ===================== CÁLCULO (sem persistir) ===================== */
 
     public FreteResponse calcular(FreteRequest req) {
@@ -67,7 +69,9 @@ public class CalculoFreteService {
         v.setUsuario(user);
 
         Viagem salvo = viagemRepositorio.save(v);
-        return viagemMapper.toResponse(salvo);
+        ViagemResponseDTO dto = viagemMapper.toResponse(salvo);
+        preencherDuracaoDto(dto);
+        return dto;
     }
 
     @Transactional
@@ -86,7 +90,9 @@ public class CalculoFreteService {
 
     public ViagemResponseDTO obterViagem(Long id) {
         Viagem entity = obterViagemEntity(id);
-        return viagemMapper.toResponse(entity);
+        ViagemResponseDTO dto = viagemMapper.toResponse(entity);
+        preencherDuracaoDto(dto);
+        return dto;
     }
 
     public Page<ViagemResponseDTO> listarViagens(String origem, String destino, Pageable pageable) {
@@ -96,13 +102,19 @@ public class CalculoFreteService {
         Page<Viagem> page = viagemRepositorio
                 .findByUsuarioIdAndOrigemContainingIgnoreCaseAndDestinoContainingIgnoreCase(
                         user.getId(), o, d, pageable);
-        return viagemMapper.toResponsePage(page);
+
+        // Preenche duração em cada item do Page
+        return page.map(v -> {
+            ViagemResponseDTO dto = viagemMapper.toResponse(v);
+            preencherDuracaoDto(dto);
+            return dto;
+        });
     }
 
     @Transactional
     public ViagemResponseDTO atualizarViagem(Long id, FreteRequest req) {
         validarRequest(req, "atualização");
-        Viagem v = obterViagemEntity(id); // garante propriedade
+        Viagem v = obterViagemEntity(id);
         FreteResponse calc = calcularInterno(req);
 
         v.setOrigem(req.getOrigem());
@@ -117,12 +129,14 @@ public class CalculoFreteService {
         v.setValorLiquido(calc.getValorLiquido());
 
         Viagem atualizado = viagemRepositorio.save(v);
-        return viagemMapper.toResponse(atualizado);
+        ViagemResponseDTO dto = viagemMapper.toResponse(atualizado);
+        preencherDuracaoDto(dto);
+        return dto;
     }
 
     @Transactional
     public void removerViagem(Long id) {
-        Viagem v = obterViagemEntity(id); // garante propriedade
+        Viagem v = obterViagemEntity(id);
         viagemRepositorio.delete(v);
     }
 
@@ -134,15 +148,6 @@ public class CalculoFreteService {
                 .orElseThrow(() -> new EntidadeInexistenteException("Viagem não encontrada"));
     }
 
-    /**
-     * Regras:
-     *  - Se 'valorFrete' for informado, usa-se diretamente (modo A).
-     *  - Senão, se 'ganhoPorKmDesejado' for informado (modo B),
-     *    calcula-se:
-     *       valorLiquidoDesejado = ganhoPorKmDesejado × distanciaEfetiva
-     *       valorFrete = valorLiquidoDesejado + (custoCombustivel + gastosAdicionais)
-     *  - XOR: exatamente um dos dois deve ser informado.
-     */
     private FreteResponse calcularInterno(FreteRequest req) {
         // Distâncias
         BigDecimal distanciaCobranca = req.getDistanciaKm(); // cliente paga só a ida
@@ -177,14 +182,26 @@ public class CalculoFreteService {
         }
 
         liquido = valorFrete.subtract(gastoTotal);
+
+        // bônus de 40% no valor líquido (se solicitado)
+        if (Boolean.TRUE.equals(req.getAplicarBonus40())) {
+            liquido = liquido.multiply(BigDecimal.valueOf(1.40));
+        }
+
+        // Ganho por km calculado sobre os km rodados (ida+volta se marcado)
         ganhoPorKm = (distanciaCusto.compareTo(BigDecimal.ZERO) > 0)
                 ? liquido.divide(distanciaCusto, 6, RoundingMode.HALF_UP)
                 : null;
 
+        BigDecimal horas = (distanciaCusto.compareTo(BigDecimal.ZERO) > 0)
+                ? distanciaCusto.divide(VEL_PADRAO_KMH, 2, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
+        String duracaoFmt = formatarDuracao(horas);
+
         return FreteResponse.builder()
                 .origem(req.getOrigem())
                 .destino(req.getDestino())
-                .distanciaConsideradaKm(distanciaCusto.setScale(2, RoundingMode.HALF_UP)) // mostra km rodado
+                .distanciaConsideradaKm(distanciaCusto.setScale(2, RoundingMode.HALF_UP))
                 .idaEVolta(Boolean.TRUE.equals(req.getIdaEVolta()))
                 .custoCombustivel(custoComb.setScale(2, RoundingMode.HALF_UP))
                 .gastosAdicionais(req.getGastosAdicionais().setScale(2, RoundingMode.HALF_UP))
@@ -192,6 +209,8 @@ public class CalculoFreteService {
                 .valorFrete(valorFrete.setScale(2, RoundingMode.HALF_UP))
                 .valorLiquido(liquido.setScale(2, RoundingMode.HALF_UP))
                 .ganhoPorKm(ganhoPorKm == null ? null : ganhoPorKm.setScale(2, RoundingMode.HALF_UP))
+                .duracaoHoras(horas.setScale(2, RoundingMode.HALF_UP))
+                .duracaoFormatada(duracaoFmt)
                 .build();
     }
 
@@ -233,11 +252,44 @@ public class CalculoFreteService {
                 .consumoKmPorLitro(req.getConsumoKmPorLitro())
                 .precoLitro(req.getPrecoLitro())
                 .gastosAdicionais(req.getGastosAdicionais())
-                .valorFrete(calc.getValorFrete()) // sempre grava o calculado
+                .valorFrete(calc.getValorFrete())
                 .idaEVolta(Boolean.TRUE.equals(req.getIdaEVolta()))
                 .custoCombustivel(calc.getCustoCombustivel())
-                .valorLiquido(calc.getValorLiquido())
+                .valorLiquido(calc.getValorLiquido()) // já com bônus, se aplicado
                 .build();
+    }
+
+    /* ======== duração helpers ======== */
+
+    private void preencherDuracaoDto(ViagemResponseDTO dto) {
+        if (dto == null) return;
+        BigDecimal distanciaCusto = Boolean.TRUE.equals(dto.getIdaEVolta())
+                ? dto.getDistanciaKm().multiply(BigDecimal.valueOf(2))
+                : dto.getDistanciaKm();
+
+        BigDecimal horas = (distanciaCusto.compareTo(BigDecimal.ZERO) > 0)
+                ? distanciaCusto.divide(VEL_PADRAO_KMH, 2, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
+
+        dto.setDuracaoHoras(horas);
+        dto.setDuracaoFormatada(formatarDuracao(horas));
+    }
+
+    private String formatarDuracao(BigDecimal horas) {
+        // Converte decimal de horas em "Xdias Yh Zmin" ou "Yh Zmin"
+        int totalMin = horas.multiply(BigDecimal.valueOf(60))
+                .setScale(0, RoundingMode.HALF_UP).intValue();
+        int dias = totalMin / (60 * 24);
+        int restoMin = totalMin % (60 * 24);
+        int h = restoMin / 60;
+        int m = restoMin % 60;
+
+        if (dias > 0) {
+            return String.format("%d dia%s %d h", dias, dias > 1 ? "s" : "", h);
+        }
+        if (h > 0 && m > 0) return String.format("%d h %d min", h, m);
+        if (h > 0)          return String.format("%d h", h);
+        return String.format("%d min", m);
     }
 
     /* ===================== validações ===================== */

@@ -31,4 +31,7 @@ public class ViagemResponseDTO {
     private BigDecimal valorLiquido;
 
     private OffsetDateTime createdAt;
+
+    private BigDecimal duracaoHoras;    // total em horas
+    private String duracaoFormatada;    // ex: "10 h 30 min" ou "1 dia 4 h"
 }

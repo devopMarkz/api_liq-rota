@@ -38,4 +38,7 @@ public class FreteRequest {
     private BigDecimal ganhoPorKmDesejado; // opcional
 
     private Boolean idaEVolta = Boolean.FALSE;
+
+    // NOVO: se true, aplica +40% sobre o VALOR LÍQUIDO calculado
+    private Boolean aplicarBonus40 = Boolean.FALSE;
 }
