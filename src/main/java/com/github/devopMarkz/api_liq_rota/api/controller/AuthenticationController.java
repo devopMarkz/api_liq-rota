@@ -4,13 +4,11 @@ import com.github.devopMarkz.api_liq_rota.api.dto.auth.LoginDTO;
 import com.github.devopMarkz.api_liq_rota.api.dto.auth.TokenDTO;
 import com.github.devopMarkz.api_liq_rota.domain.service.AutenticacaoService;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/auth")
+@CrossOrigin(origins = "*")
 public class AuthenticationController {
 
     private final AutenticacaoService autenticacaoService;
