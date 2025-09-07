@@ -24,11 +24,9 @@ public class AuthenticationController {
         String referer = request.getHeader("Referer");
         String userAgent = request.getHeader("User-Agent");
 
-        System.out.println("=== CORS DEBUG ===");
         System.out.println("Origin: " + origin);
         System.out.println("Referer: " + referer);
         System.out.println("User-Agent: " + userAgent);
-        System.out.println("==================");
 
         TokenDTO tokenDTO = autenticacaoService.realizarLogin(loginDTO);
         return ResponseEntity.ok(tokenDTO);
