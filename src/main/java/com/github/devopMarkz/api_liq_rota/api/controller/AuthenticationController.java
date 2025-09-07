@@ -3,6 +3,7 @@ package com.github.devopMarkz.api_liq_rota.api.controller;
 import com.github.devopMarkz.api_liq_rota.api.dto.auth.LoginDTO;
 import com.github.devopMarkz.api_liq_rota.api.dto.auth.TokenDTO;
 import com.github.devopMarkz.api_liq_rota.domain.service.AutenticacaoService;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,7 +19,17 @@ public class AuthenticationController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<TokenDTO> login(@RequestBody LoginDTO loginDTO){
+    public ResponseEntity<TokenDTO> login(@RequestBody LoginDTO loginDTO, HttpServletRequest request){
+        String origin = request.getHeader("Origin");
+        String referer = request.getHeader("Referer");
+        String userAgent = request.getHeader("User-Agent");
+
+        System.out.println("=== CORS DEBUG ===");
+        System.out.println("Origin: " + origin);
+        System.out.println("Referer: " + referer);
+        System.out.println("User-Agent: " + userAgent);
+        System.out.println("==================");
+
         TokenDTO tokenDTO = autenticacaoService.realizarLogin(loginDTO);
         return ResponseEntity.ok(tokenDTO);
     }
