@@ -32,7 +32,7 @@ public class CalculoFreteService {
     private final ViagemRepository viagemRepositorio;
     private final ViagemMapper viagemMapper;
 
-    private static final BigDecimal VEL_PADRAO_KMH = BigDecimal.valueOf(80);
+    private static final BigDecimal VEL_PADRAO_KMH = BigDecimal.valueOf(60);
 
     /* ===================== CÁLCULO (sem persistir) ===================== */
 
