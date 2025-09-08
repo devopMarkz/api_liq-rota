@@ -188,9 +188,9 @@ public class CalculoFreteService {
             liquido = liquido.multiply(BigDecimal.valueOf(1.40));
         }
 
-        // Ganho por km calculado sobre os km rodados (ida+volta se marcado)
+        // Ganho por km calculado sobre o valor bruto (frete) e km rodado (ida+volta se marcado)
         ganhoPorKm = (distanciaCusto.compareTo(BigDecimal.ZERO) > 0)
-                ? liquido.divide(distanciaCusto, 6, RoundingMode.HALF_UP)
+                ? valorFrete.divide(distanciaCusto, 6, RoundingMode.HALF_UP)
                 : null;
 
         BigDecimal horas = (distanciaCusto.compareTo(BigDecimal.ZERO) > 0)
