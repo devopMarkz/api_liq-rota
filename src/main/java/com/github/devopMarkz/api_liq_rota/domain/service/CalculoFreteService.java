@@ -188,7 +188,13 @@ public class CalculoFreteService {
             liquido = liquido.multiply(BigDecimal.valueOf(1.40));
         }
 
-        // Ganho por km calculado sobre o valor bruto (frete) e km rodado (ida+volta se marcado)
+        // Novo: se o usuário marcar para receber ida e volta, o valor do frete será calculado considerando a volta
+        if (Boolean.TRUE.equals(req.getReceberPorIdaEVolta())) {
+            valorFrete = valorFrete.multiply(BigDecimal.valueOf(2)); // dobra o valor do frete
+            liquido = liquido.multiply(BigDecimal.valueOf(2)); // dobra o valor líquido também
+        }
+
+        // Ganho por km calculado sobre o valor BRUTO do frete e km rodado (ida+volta se marcado)
         ganhoPorKm = (distanciaCusto.compareTo(BigDecimal.ZERO) > 0)
                 ? valorFrete.divide(distanciaCusto, 6, RoundingMode.HALF_UP)
                 : null;

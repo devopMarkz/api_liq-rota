@@ -41,4 +41,7 @@ public class FreteRequest {
 
     // NOVO: se true, aplica +40% sobre o VALOR LÍQUIDO calculado
     private Boolean aplicarBonus40 = Boolean.FALSE;
+
+    // Se true, calcula o valor do frete com ida e volta
+    private Boolean receberPorIdaEVolta = Boolean.FALSE; // novo campo
 }
